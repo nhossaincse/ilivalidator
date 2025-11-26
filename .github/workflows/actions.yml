@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - stable
+  pull_request:
+    branches:
+      - master
+      - stable
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Python version
+        run: python3 --version
+      - name: Set up Python 3 virtual environment
+        run: |
+          virtualenv -p python3 my_py3
+          source my_py3/bin/activate
+      - name: Install Python dependencies
+        run: |
+          python -m pip --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org install docutils
+          python -m pip --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org install Pygments
+          python -m pip freeze
+      - name: Build documentation
+        run: ./gradlew -Drst2html=`which rst2html.py` usrdoc build
+  deploy-master:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Maven Central
+        run: ./gradlew -Drepos_pwd=${repos_pwd} -Drepos_usr=jql_jars-INTE uploadArchives
+  deploy-stable:
+    needs: build
+    if: github.ref == 'refs/heads/stable'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Maven Central and GitHub
+        run: ./gradlew -Drst2html=`which rst2html.py` -Dgithub_token=${github_token} -Drepos_pwd=${repos_pwd} -Drepos_usr=jql_jars-INTE '-Drelease=' -Ddownloads_pwd=${downloads_pwd} -Ddownloads_usr=jql_downloads -Ddocs_pwd=${docs_pwd} -Ddocs_usr=jql_docs uploadArchives uploadBin uploadDoc
